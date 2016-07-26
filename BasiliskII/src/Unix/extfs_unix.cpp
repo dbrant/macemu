@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
+#include <utime.h>
 
 #include "sysdeps.h"
 #include "extfs.h"
@@ -268,6 +269,25 @@ void set_finfo(const char *path, uint32 finfo, uint32 fxinfo, bool is_dir)
 	close(fd);
 }
 
+void set_finfo(const char *path, uint32 finfo, uint32 fxinfo, time_t actime, time_t modtime, bool is_dir)
+{
+	struct stat file_stat;
+	time_t mtime;
+
+	if (stat(path, &file_stat) < 0) {
+		D(bug("stat failed on %s\n", path));
+	} else {
+		struct utimbuf times;
+		times.actime = actime;
+		times.modtime = modtime;
+
+		if (utime(path, &times) < 0) {
+			D(bug("utime failed on %s\n", path));
+		}
+	}
+
+	set_finfo(path, finfo, fxinfo, is_dir);
+}
 
 /*
  *  Resource fork emulation functions

@@ -1503,8 +1503,11 @@ static int16 fs_set_cat_info(uint32 pb)
 	if (stat(full_path, &st) < 0)
 		return errno2oserr();
 
+	time_t createTime = MacTimeToTime(ReadMacInt32(pb + ioFlCrDat));
+	time_t modifiedTime = MacTimeToTime(ReadMacInt32(pb + ioFlMdDat));
+
 	// Set Finder info
-	set_finfo(full_path, pb + ioFlFndrInfo, pb + ioFlXFndrInfo, S_ISDIR(st.st_mode));
+	set_finfo(full_path, pb + ioFlFndrInfo, pb + ioFlXFndrInfo, createTime, modifiedTime, S_ISDIR(st.st_mode));
 
 	//!! times
 	return noErr;
