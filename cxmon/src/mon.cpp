@@ -26,6 +26,7 @@
 #include <ctype.h>
 #include <string>
 #include <map>
+#include <sstream>
 
 #if defined(HAVE_READLINE_H)
 extern "C" {
@@ -55,6 +56,9 @@ extern "C" {
 #define VERSION "3"
 #endif
 
+// Break points
+BREAK_POINT_SET active_break_points;
+BREAK_POINT_SET disabled_break_points;
 
 // Buffer we're operating on
 bool mon_use_real_mem = false;
@@ -63,7 +67,7 @@ static uint8 *mem;
 
 
 // Streams for input, output and error messages
-FILE *monin, *monout, *monerr;
+FILE *monin, *monout, *monerr = NULL;
 
 // Input line
 static char *input;
@@ -150,7 +154,7 @@ void mon_add_command(const char *name, void (*func)(), const char *help_text)
 
 void mon_error(const char *s)
 {
-	fprintf(monerr, "*** %s\n", s);
+	fprintf(monerr == NULL? stdout : monerr, "*** %s\n", s);
 }
 
 
@@ -1027,6 +1031,63 @@ void mon_change_dir()
 
 
 /*
+ * Add break point
+ */
+
+void mon_add_break_point(uintptr addr)
+{
+	BREAK_POINT_SET::iterator it = disabled_break_points.find(addr);
+	// Save break point
+	if (it == disabled_break_points.end()) {
+		active_break_points.insert(addr);
+	} else {
+		disabled_break_points.erase(it);
+		active_break_points.insert(addr);
+	}
+}
+
+
+/*
+ * Load break point from file
+ */
+void mon_load_break_point(const char* file_path)
+{
+	FILE *file;
+	if (!(file = fopen(file_path, "r"))) {
+		mon_error("Unable to create file");
+		return;
+	}
+
+	char line_buff[1024];
+	bool is_disabled_break_points = false;
+
+	if (fgets(line_buff, sizeof(line_buff), file) == NULL ||
+			strcmp(line_buff, STR_ACTIVE_BREAK_POINTS) != 0) {
+		mon_error("Invalid break point file format!");
+		fclose(file);
+		return;
+	}
+
+	while (fgets(line_buff, sizeof(line_buff), file) != NULL) {
+		if (strcmp(line_buff, STR_DISABLED_BREAK_POINTS) == 0) {
+			is_disabled_break_points = true;
+			continue;
+		}
+		uintptr address;
+		std::stringstream ss;
+		ss << std::hex << line_buff;
+		ss >> address;
+		if (is_disabled_break_points)
+			disabled_break_points.insert(address);
+		else
+			active_break_points.insert(address);
+	}
+
+	fclose(file);
+}
+
+
+/*
  *  Initialize mon
  */
 
@@ -1043,6 +1104,13 @@ void mon_init()
 	mon_add_command("i", ascii_dump,				"i [start [end]]          ASCII memory dump\n");
 	mon_add_command("m", memory_dump,				"m [start [end]]          Hex/ASCII memory dump\n");
 	mon_add_command("b", binary_dump,				"b [start [end]]          Binary memory dump\n");
+	mon_add_command("ba", break_point_add,				"ba [address]             Add a break point\n");
+	mon_add_command("br", break_point_remove,				"br [breakpoints#]        Remove a break point. If # is 0, remove all break points.\n");
+	mon_add_command("bd", break_point_disable,				"bd [breakpoints#]        Disable a break point. If # is 0, disable all break points.\n");
+	mon_add_command("be", break_point_enable,				"be [breakpoints#]        Enable a break point. If # is 0, enable all break points.\n");
+	mon_add_command("bi", break_point_info,				"bi                       List all break points\n");
+	mon_add_command("bs", break_point_save,				"bs \"file\"                Save all break points to a file\n");
+	mon_add_command("bl", break_point_load,				"bl \"file\"                Load break points from a file\n");
 	mon_add_command("d", disassemble_ppc,			"d [start [end]]          Disassemble PowerPC code\n");
 	mon_add_command("d65", disassemble_6502,		"d65 [start [end]]        Disassemble 6502 code\n");
 	mon_add_command("d68", disassemble_680x0,		"d68 [start [end]]        Disassemble 680x0 code\n");
