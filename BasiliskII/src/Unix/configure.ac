@@ -88,6 +88,11 @@ AC_ARG_WITH(bincue,
 AC_ARG_WITH(libvhd,   
   AS_HELP_STRING([--with-libvhd], [Enable VHD disk images]))
 
+AC_ARG_WITH(vdeplug,
+  AS_HELP_STRING([--with-vdeplug], [Enable VDE virtual network support]),
+  [],
+  [with_vdeplug=yes])
+
   
 dnl Cross Compiling results in 'guesses' being made about the target system. These defaults are oftetimes incorrect.
 dnl The following Environment variables allow you to configure the default guess value for each option in the configure script.
@@ -324,7 +329,7 @@ else
 fi
 
 dnl We need X11, if not using SDL or Mac GUI.
-if [[ "x$WANT_SDL_VIDEO" = "xno" -a "x$WANT_MACOSX_GUI" = "xno"]]; then
+if [[ "x$WANT_SDL_VIDEO" = "xno" -a "x$WANT_MACOSX_GUI" = "xno" ]]; then
   AC_PATH_XTRA
   if [[ "x$no_x" = "xyes" ]]; then
     AC_MSG_ERROR([You need X11 to run Basilisk II.])
@@ -792,6 +797,13 @@ if [[ -n "$CAN_SLIRP" ]]; then
 fi
 AC_SUBST(SLIRP_SRCS)
 
+dnl Is libvdeplug available?
+have_vdeplug=no
+AS_IF([test "x$with_vdeplug" = "xyes"], [
+  have_vdeplug=yes
+  AC_CHECK_LIB(vdeplug, vde_close, [], [have_vdeplug=no])
+])
+
 if [[ "x$WANT_MACOSX_GUI" = "xyes" ]]; then
   CPPFLAGS="$CPPFLAGS -I../MacOSX"
   LIBS="$LIBS -framework CoreAudio -framework AudioUnit -framework AudioToolbox"
@@ -906,6 +918,9 @@ dnl Check that the host supports TUN/TAP devices
 AC_CACHE_CHECK([whether TUN/TAP is supported],
   ac_cv_tun_tap_support, [
   AC_TRY_COMPILE([
+    #ifdef HAVE_SYS_SOCKET_H
+    #include <sys/socket.h>
+    #endif
     #if defined(HAVE_LINUX_IF_H) && defined(HAVE_LINUX_IF_TUN_H)
     #include <linux/if.h>
     #include <linux/if_tun.h>
@@ -1850,6 +1865,7 @@ echo Mac OS X Sound ......................... : $WANT_MACOSX_SOUND
 echo SDL support ............................ : $SDL_SUPPORT
 echo BINCUE support ......................... : $have_bincue
 echo LIBVHD support ......................... : $have_libvhd
+echo VDE support ............................ : $have_vdeplug
 echo XFree86 DGA support .................... : $WANT_XF86_DGA
 echo XFree86 VidMode support ................ : $WANT_XF86_VIDMODE
 echo fbdev DGA support ...................... : $WANT_FBDEV_DGA
